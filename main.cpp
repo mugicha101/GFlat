@@ -8,6 +8,10 @@
 
 const int SCREEN_WIDTH = 640;
 const int SCREEN_HEIGHT = 480;
+
+const int CALC_FPS = 60;
+const int DRAW_FPS = 60;
+
 SDL_Window* window = NULL; // screen window
 SDL_Surface* screenSurface = NULL; // screen surface
 SDL_Event e;
@@ -70,65 +74,85 @@ bool loadMedia() {
 	return true;
 }
 
-int mainLoop() {
-	bool quit = false;
+bool quit = false;
+int frame = 0;
 
-	auto eventLoop = [&]() {
-		while (SDL_PollEvent(&e)) {
-			switch (e.type) {
-			case SDL_QUIT:
-				quit = true;
-				break;
-			case SDL_KEYDOWN:
-				switch (e.key.keysym.sym) {
-				case SDLK_UP:
-					break;
-				}
+void eventLoop() {
+	while (SDL_PollEvent(&e)) {
+		switch (e.type) {
+		case SDL_QUIT:
+			quit = true;
+			break;
+		case SDL_KEYDOWN:
+			switch (e.key.keysym.sym) {
+			case SDLK_UP:
 				break;
 			}
+			break;
 		}
-	};
+	}
+}
 
+void calc(int dt) {
+
+}
+
+void draw() {
+	// clear screen
+	SDL_RenderSetViewport(renderer, nullptr);
+	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BlendMode::SDL_BLENDMODE_NONE);
+	SDL_RenderClear(renderer);
+	SDL_SetRenderDrawBlendMode(renderer, SDL_BlendMode::SDL_BLENDMODE_BLEND);
+
+	// draws a box
+	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+	SDL_Rect fillRect = { SCREEN_WIDTH >> 2, SCREEN_HEIGHT >> 2, SCREEN_WIDTH >> 1, SCREEN_HEIGHT >> 1 };
+	SDL_RenderFillRect(renderer, &fillRect);
+
+	// draws a polygon
+	SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+	SDL_Point pts[7];
+	float dir = 0;
+	float step = (float)(M_PI / 3);
+	float rad = SCREEN_WIDTH * 0.25f;
+	SDL_Point center = { SCREEN_WIDTH >> 1, SCREEN_HEIGHT >> 1 };
+	for (int i = 0; i < 6; ++i) {
+		pts[i] = { center.x + lroundf(rad * cosf(dir)), center.y + lroundf(rad * sinf(dir)) };
+		dir += step;
+	}
+	pts[6] = pts[0];
+	SDL_RenderDrawLines(renderer, pts, 7);
+
+	SDL_Rect miniMapViewport = { 0, 0, SCREEN_WIDTH >> 2, SCREEN_HEIGHT >> 2 };
+	SDL_RenderSetViewport(renderer, &miniMapViewport);
+
+	// render image
+	img.draw(0, 0);
+
+	// update screen
+	SDL_RenderPresent(renderer);
+}
+
+int mainLoop() {
+	int cdt = (int)(1000.0f / CALC_FPS + 0.5f); // ms between calc frames
+	int ddt = (int)(1000.0f / DRAW_FPS + 0.5f); // ms between draw frames
+	long time = SDL_GetTicks64();
 	printf("Main Loop Entered\n");
+
 	while (!quit) {
 		eventLoop();
-		// clear screen
-		SDL_RenderSetViewport(renderer, nullptr);
-		SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-		SDL_SetRenderDrawBlendMode(renderer, SDL_BlendMode::SDL_BLENDMODE_NONE);
-		SDL_RenderClear(renderer);
-		SDL_SetRenderDrawBlendMode(renderer, SDL_BlendMode::SDL_BLENDMODE_BLEND);
-
-		// draws a box
-		SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-		SDL_Rect fillRect = { SCREEN_WIDTH >> 2, SCREEN_HEIGHT >> 2, SCREEN_WIDTH >> 1, SCREEN_HEIGHT >> 1 };
-		SDL_RenderFillRect(renderer, &fillRect);
-
-		// draws a polygon
-		SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-		SDL_Point pts[7];
-		float dir = 0;
-		float step = M_PI / 3;
-		float rad = SCREEN_WIDTH * 0.25f;
-		SDL_Point center = { SCREEN_WIDTH >> 1, SCREEN_HEIGHT >> 1 };
-		for (int i = 0; i < 6; ++i) {
-			pts[i] = { center.x + lroundf(rad * cosf(dir)), center.y + lroundf(rad * sinf(dir)) };
-			dir += step;
+		long nextFrame = time + (ddt << 1);
+		while (time < nextFrame) {
+			calc(cdt);
+			time += cdt;
+			frame++;
 		}
-		pts[6] = pts[0];
-		SDL_RenderDrawLines(renderer, pts, 7);
-
-		SDL_Rect miniMapViewport = { 0, 0, SCREEN_WIDTH >> 2, SCREEN_HEIGHT >> 2 };
-		SDL_RenderSetViewport(renderer, &miniMapViewport);
-
-		// render image
-		img.draw(0, 0);
-
-		// update screen
-		SDL_RenderPresent(renderer);
-
-		// prevents CPU fire
-		SDL_Delay(100);
+		draw();
+		long delay = nextFrame - SDL_GetTicks64();
+		std::cout << delay << std::endl;
+		if (delay > 0)
+			SDL_Delay(delay);
 	}
 	printf("Main Loop Exited");
 	return 0;
